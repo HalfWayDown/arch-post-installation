@@ -1,0 +1,3 @@
+firewalld
+python-pyqt5
+python-capng

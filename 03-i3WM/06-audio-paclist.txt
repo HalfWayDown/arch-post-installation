@@ -1,0 +1,9 @@
+alsa-firmware
+alsa-plugins
+alsa-utils
+pavucontrol
+pipewire-pulse
+wireplumber
+pipewire-alsa
+pipewire-jack
+rtkit

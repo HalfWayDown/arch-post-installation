@@ -1,0 +1,4 @@
+pacman-contrib
+pkgfile
+rebuild-detector
+reflector

@@ -1,0 +1,8 @@
+dmidecode
+dmraid
+hdparm
+hwdetect
+lsscsi
+mtools
+sg3_utils
+sof-firmware

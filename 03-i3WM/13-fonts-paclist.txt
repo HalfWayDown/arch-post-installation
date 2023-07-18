@@ -1,0 +1,4 @@
+ttf-firacode-nerd
+terminus-font
+ttf-iosevka-nerd
+ttf-hack
