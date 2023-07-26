@@ -1,0 +1,125 @@
+1. Internet Connections and timezone related preparation
+    - setting up wifi connection (wifi card saya terbaca sebagai wlan0)
+        - iwctl
+        - station wlan0 connect <NAMA SSID>
+        - enter network password if asked
+
+    - timezone related preparation
+        - timezonectl set-timezone Asia/Jakarta (sesuaikan dengan timezone kalian)
+
+2. Partisi Disk
+    - gunakan partition program berbasis cli yang kalian biasa gunakan, gdisk atau apapun itu.
+    - buat partisi pertama untuk BOOT, sekitar 512MB
+    - buat partisi ROOT
+    - optional, buat partisi HOME dan lainnya terpisah jika mau.
+
+3. Format Partisi
+    - cek dengan lsblk, cari tahu label partisi yang akan dipakai untuk BOOT, ROOT dan partisi lain jika ada
+    - mkfs.vfat -n BOOT /dev/(label partisi boot) # partisi BOOT
+    - mkfs.btrfs -L ROOT /dev/(label partisi root) # partisi ROOT
+    - lakukan untuk partisi lainnya jika ada
+
+4. Persiapan mountpoints
+    - mount /dev/vda2 /mnt
+    - cd /mnt
+    - btrfs subvolume create @
+    - btrfs subvolume create @home
+    - cd && umount /mnt
+
+5. Mountpoints Assignment
+    - mount -o compress=zstd:1,noatime,subvol=@ /dev/vda2 /mnt # subvol @ untuk ROOT
+    - mkdir -p /mnt/{boot/efi,home} # buat direktori sesuai kebutuhan mountpoints
+    - mount -o compress=zstd:1,noatime,subvol=@home /dev/vda2 /mnt/home # subvol @home untuk HOME
+    - lakukan untuk partisi lainnya jika ada
+    - mount /dev/vda1 /mnt/boot/efi
+
+6. Persiapan instalasi base system
+    - reflector --country ID --latest 5 --sort rate --save /etc/pacman.d/mirrorlist # setting mirrorlist dengan reflector
+    - nano /etc/pacman.conf
+        - uncomment color
+        - parallel download 5
+        - tambahkan baris ILoveCandy kalau mau
+    - pacman -Syy # sinkronisasi dengan mirror baru
+
+7. Instalasi base system
+    - pacstrap -K /mnt base base-devel git linux linux-firmware nano openssh reflector rsync
+    - generate file system tab dengan command ini
+        - genfstab -U /mnt >> /mnt/etc/fstab
+
+8. Konfigurasi fresh install base system
+    - masuk ke fresh install system
+        - arch-chroot /mnt
+    - nano /etc/fstab # cek file system table, takut ada error atau masih kosong. Jika masih kosong, exit arch-chroot dan ulangi command genfstab diatas
+
+9. Localization
+    - ln -sf /usr/share/zoneinfo/Asia/Jakarta /etc/localtime # sesuaikan dengan zoneinfo kalian
+    - hwclock --systohc --utc
+    - reflector --country ID --latest 5 --sort rate --save /etc/pacman.d/mirrorlist
+    - pacman -Syy
+    - nano /etc/locale.gen # uncomment locale yang kalian mau, saya memakai en_US.UTF-8 dan id_ID.UTF-8
+    - locale-gen
+    - echo LANG=en_US.UTF-8 > /etc/locale.conf # setting bahasa system
+
+10. Setting up hostname dan hosts
+    - echo <nama mesin yang kalian mau. saya contohkan ARCHBOX> > /etc/hostname
+    - nano /etc/hosts
+    - tambahkan baris berikut:
+        127.0.0.1   localhost
+        ::1         localhost
+        127.0.1.1   ARCHBOX.localdomain ARCHBOX
+
+11. Post-Install Configurations
+Disini saya menggunakan paclist dari github saya sendiri, boleh kalian ambil juga untuk referensi. Sesuaikan saja dengan kebutuhan.
+Saya akan menggunakan i3wm untuk sekarang.
+    - mkdir git-packages
+    - cd git-packages
+    - git clone https://github.com/halfwaydown/arch-post-installation
+    - cd arch-post-installation/03-i3WM/
+    - nano /etc/pacman.conf # uncomment color, paralled downloads 5, gunakan ILoveCandy kalau mau
+    - pacman -S --needed - < 00-xorg-paclist                                                                           
+    - pacman -S --needed - < 01-net-paclist                                                                            
+    - pacman -S --needed - < 02-firewall-paclist                                                                       
+    - pacman -S --needed - < 03-package-manager                                                                        
+    - pacman -S --needed - < 04-desktop-integration                                                                    
+    - pacman -S --needed - < 05-filesystem                                                                             
+    - pacman -S --needed - < 06-audio                                                                                  
+    - pacman -S --needed - < 07-hardware                                                                               
+    - pacman -S --needed - < 08-power                                                                                  
+    - pacman -S --needed - < 09-apps                                                                                   
+    - pacman -S --needed - < 10-cpu-microcode                                                                          
+    - pacman -S --needed - < 11-i3wm                                                                                   
+    - pacman -S --needed - < 12-printing                                                                               
+    - pacman -S --needed - < 13-fonts
+    - cd /
+    - rm -rf git-packages
+
+12. Setting up user and root
+    - passwd root # masukkan password untuk user root sesuai keinginan kalian
+    - add user baru, saya contohkan halfwaydown. ganti halfwaydown sesuai keinginan nama user kalian
+    - useradd -mG sys,log,network,floppy,scanner,power.rfkill,users,video,storage,optical,lp,audio,wheel,adm -s /bin/zsh halfwaydown
+    - passwd halfwaydown # setup password user baru
+    - export VISUAL=nano
+    - visudo /etc/sudoers # uncomment wheel sections
+
+13. Grub Installations
+    - grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=ArchLinux
+    - grub-mkconfig -o /boot/grub/grub.cfg
+
+14. Default System Services Needed
+    - systemctl enable avahi-daemon => broadcasting id kita kedalam network                                            
+    - systemctl enable bluetooth => bluetooth service daemon                                                           
+    - systemctl enable haveged => randomization                                                                        
+    - systemctl enable cups => printing                                                                                
+    - systemctl enable firewalld => firewall                                                                           
+    - systemctl enable fstrim.timer                                                                                    
+    - systemctl enable sddm => display manager/login manager                                                           
+    - systemctl enable NetworkManager => network manager                                                               
+    - systemctl enable reflector.timer => reflector                                                                    
+    - systemctl enable sshd => secure shell                                                                            
+    - systemctl enable upower => power management                                                                      
+
+15. Finished Step
+    - exit
+    - umount -a
+    - reboot
+Sekarang kamu akan masuk ke fresh install Arch Linux kamu.
