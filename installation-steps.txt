@@ -5,7 +5,7 @@
         - enter network password if asked
 
     - timezone related preparation
-        - timezonectl set-timezone Asia/Jakarta (sesuaikan dengan timezone kalian)
+        - timedatectl set-timezone Asia/Jakarta (sesuaikan dengan timezone kalian)
 
 2. Partisi Disk
     - gunakan partition program berbasis cli yang kalian biasa gunakan, gdisk atau apapun itu.
