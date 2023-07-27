@@ -15,8 +15,8 @@
 
 3. Format Partisi
     - cek dengan lsblk, cari tahu label partisi yang akan dipakai untuk BOOT, ROOT dan partisi lain jika ada
-    - mkfs.vfat -n BOOT /dev/(label partisi boot) # partisi BOOT
-    - mkfs.btrfs -L ROOT /dev/(label partisi root) # partisi ROOT
+    - mkfs.vfat -n BOOT /dev/vda1 # partisi BOOT
+    - mkfs.btrfs -L ROOT /dev/vda2 # partisi ROOT
     - lakukan untuk partisi lainnya jika ada
 
 4. Persiapan mountpoints
