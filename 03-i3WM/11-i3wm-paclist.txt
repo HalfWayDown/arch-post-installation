@@ -20,6 +20,7 @@ gvfs-nfs
 gvfs-smb
 i3-wm
 jq
+kitty
 lxappearance-gtk3
 mpc
 mpd
@@ -28,6 +29,7 @@ mpv
 network-manager-applet
 nitrogen
 numlockx
+picom
 playerctl
 polkit-gnome
 polybar
