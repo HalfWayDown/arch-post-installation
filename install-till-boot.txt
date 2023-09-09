@@ -1,0 +1,162 @@
+Kali ini saya akan melakukan instalasi archlinux secara manual seperti yang tertulis di arch wiki.
+Saya akan melakukan instalasi pada virtual machine dengan setting RAM 2GB dan 2 core prosesor.
+ISO yang saya gunakan versi 2023.07, alokasi hardisk di VM 30GB, 10GB untuk root dan sisanya HOME.
+
+cek koneksi internet, coba ping kemana saja. jika sudah terkoneksi kita lanjut.
+untuk pengguna wifi, coba gunakan command iwctl.
+kemudian ketik station <nama device wifi(wlan0 atau yg lainnya)> connect <nama jaringan>
+masukan password jaringan jika diminta
+
+lsblk menunjukan ada hdd 30GB untuk saya gunakan.
+bagian pertama adalah partisi harddisk.
+
+saya memakai gdisk, silakan gunakan yang lain jika kalian sudah terbiasa membuat partisi menggunakan command line.
+gdisk /dev/vda
+(n)ew partition, +512MB, EF00
+(c)reate partition, name BOOT
+(n)ew partition, +10GB, 8300
+(c)reate partition, name ROOT
+(n)ew parition, gunakan semuanya, 8300
+(c)reate partition, name HOME
+(w)rite, (y)es
+
+format partisi
+mkfs.vfat -n BOOT /dev/vda1 # partisi boot
+mkfs.btrfs -L ROOT /dev/vda2 # partisi root
+mkfs.btrfs -L HOME /dev/vda3 # partisi home
+
+persiapan partisi sebelum instalasi
+mount /dev/vda2 /mnt # mount partisi root untuk membuat subvolume @ dan @snapshots (saya menggunakan snapshots untuk rollback jika ada kesalahan pada sistem)
+cd /mnt
+btrfs subvolume create @
+btrfs subvolume create @snapshots
+cd
+umount /mnt # persiapan partisi root selesai
+
+mount /dev/vda3 /mnt # mount partisi home untuk membuat subvolume lainnya, disini saya membuat subvolume home, cache, log dan libvirt/images. saya ingin memisahkan partisi ini dari root supaya root bisa sedikit isinya.
+cd /mnt
+btrfs subvolume create @home
+btrfs subvolume create @cache
+btrfs subvolume create @log
+btrfs subvolume create @images
+cd
+umount /mnt
+
+remount root dengan parameter tambahan sesuai dengan kebutuhan
+mount -o compress=zstd:1,noatime,subvol=@ /dev/vda2 /mnt # subvol @ untuk root
+buat direktori untuk subvolume lainnya
+mkdir -p /mnt/(boot/efi,home,.snapshots,var/{cache,log,lib/libvirt/images}}
+mount -o compress=zstd:1,noatime,subvol=@ /dev/vda2 /mnt # subvol @ untuk root
+mount -o compress=zstd:1,noatime,subvol=@snapshots /dev/vda2 /mnt/.snapshots # subvol untuk .snapshots
+mount -o compress=zstd:1,noatime,subvol=@home /dev/vda3 /mnt/home # subvol untuk home, perhatikan dimana partisi vda yang saya gunakan untuk home dan /var
+mount -o compress=zstd:1,noatime,subvol=@cache /dev/vda3 /mnt/var/cache # subvol untuk /var/cache
+mount -o compress=zstd:1,noatime,subvol=@log /dev/vda3 /mnt/var/log # subvol untuk /var/log
+mount -o compress=zstd:1,noatime,subvol=@images /dev/vda3 /mnt/var/lib/libvirt/images # subvol untuk /var/lib/libvirt/images
+mount /dev/vda1 /mnt/boot/efi
+lsblk
+semua mountpoints sudah sesuai, kita mulai instalasinya
+
+set timezone ke Asia/Jakarta (sesuaikan saja dengan daerah lainnya)
+timedatectl set-timezone Asia/Jakarta
+set mirrorlist menggunakan reflector
+reflector --country ID --latest 5 --sort rate --save /etc/pacman.d/mirrorlist
+nano /etc/pacman.conf
+edit pacman config, gunakan pararrel download 5 dan unvomment color, tambahkan ILoveCandy kalau mau
+pacman -Syy untuk sinkronisasi mirror
+
+mulai installasi
+pacstrap -K /mnt base base-devel git linux linux-firmware nano openssh reflector rsync
+genfstab -U /mnt >> /mnt/etc/fstab # generate file system tab
+arch-chroot /mnt # sekarang kita berada di root dari instalasi arch kita
+cek fstab -> nano /etc/fstab
+
+localization
+ln -sf /usr/share/zoneinfo/Asia/Jakarta /etc/localtime
+hwclock --systohc --utc
+reflector --country ID --latest 5 --sort rate --save /etc/pacman.d/mirrorlist
+pacman -Syy 
+nano /etc/locale.gen
+uncomment locale yang diinginkan disini saya menggunakan en_US.UTF-8 dan id_ID.UTF-8
+locale-gen
+set bahasa dengan command echo LANG=en_US.UTF-8 > /etc/locale.conf
+localization selesai
+
+set hostname dan hosts
+echo archbox > /etc/hostname
+nano /etc/hosts
+127.0.0.1   localhost
+::1         localhost
+127.0.1.1   archbox.localdomain archbox
+
+
+buat direktori baru untuk menyimpan list package
+kali ini saya akan menggunakan i3wm
+mkdir git-packages
+cd git-packages
+git clone https://github.com/halfwaydown/arch-post-installation
+cd arch-post-installation/03-i3WM/
+nano /etc/pacman.conf
+uncomment color, parallel downloads, gunakan ILoveCandy kalau mau
+pacman -S --needed - < 00-xorg-paclist
+pacman -S --needed - < 01-net-paclist
+pacman -S --needed - < 02-firewall-paclist 
+pacman -S --needed - < 03-package-manager
+pacman -S --needed - < 04-desktop-integration
+pacman -S --needed - < 05-filesystem
+pacman -S --needed - < 06-audio
+pacman -S --needed - < 07-hardware
+pacman -S --needed - < 08-power
+pacman -S --needed - < 09-apps
+pacman -S --needed - < 10-cpu-microcode
+pacman -S --needed - < 11-i3wm
+pacman -S --needed - < 12-printing
+pacman -S --needed - < 13-fonts
+
+cd /
+rm -rf git-packages
+
+passwd root
+useradd -mG sys,log,network,floppy,scanner,power,rfkill,users,video,storage,optical,lp,audio,wheel,adm -s /bin/zsh naufal
+passwd naufal
+export VISUAL=nano
+visudo /etc/sudoers # uncomment wheel section
+grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=ArchLinux
+grub-mkconfig -o /boot/grub/grub.cfg
+nano /etc/mkinitcpio.conf # add btrfs in binaries section
+mkinitcpio -p linux
+
+
+*** enabling system services ***
+systemctl enable avahi-daemon => broadcasting id kita kedalam network
+systemctl enable bluetooth => bluetooth service daemon
+systemctl enable haveged => randomization
+systemctl enable cups => printing
+systemctl enable firewalld => firewall
+systemctl enable fstrim.timer
+systemctl enable sddm => display manager/login manager
+systemctl enable NetworkManager => network manager
+systemctl enable reflector.timer => reflector
+systemctl enable sshd => secure shell
+systemctl enable upower => power management
+*** enabling system services complete ***
+
+exit sheel
+umount -a
+reboot
+done
+
+
+booting pertama ke desktop, buka terminal
+edit config reflector
+sudo nano /etc/XDG/reflector/reflector.conf
+uncomment country dan ganti ke Indonesia
+ganti sort dari age menjadi rate
+
+mari kita gunakan yay sebagai package manager
+git clone https://aur.archlinux.org/yay
+cd yay
+makepkg -si
+
+cek yay sekalian lakukan upgrade sistem
+reboot
+
